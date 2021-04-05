@@ -1,5 +1,4 @@
-
-function loadOBJ(renderer, path, name, guiParams) {
+function loadOBJ(renderer, path, name, objMaterial, transform) {
 
 	const manager = new THREE.LoadingManager();
 	manager.onProgress = function (item, loaded, total) {
@@ -12,7 +11,7 @@ function loadOBJ(renderer, path, name, guiParams) {
 			console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
 		}
 	}
-	function onError() { console.log("error"); }
+	function onError() { }
 
 	new THREE.MTLLoader(manager)
 		.setPath(path)
@@ -33,49 +32,36 @@ function loadOBJ(renderer, path, name, guiParams) {
 							let mesh = new Mesh({ name: 'aVertexPosition', array: geo.attributes.position.array },
 								{ name: 'aNormalPosition', array: geo.attributes.normal.array },
 								{ name: 'aTextureCoord', array: geo.attributes.uv.array },
-								indices);
+								indices, transform);
 
-							let colorMap = null;
-							if (mat.map != null) colorMap = new Texture(renderer.gl, mat.map.image);
-							// MARK: You can change the myMaterial object to your own Material instance
-
-							let textureSample = 0;
-							let myMaterial;
-							var dirLightColor = [guiParams.dirLightColorR, guiParams.dirLightColorG, guiParams.dirLightColorB];
-							var dirLightDirection = [guiParams.dirLightTransDirX, guiParams.dirLightTransDirY, guiParams.dirLightTransDirZ];
-							var dirLightIntensity = guiParams.dirLightIntensity;
-							
-							// myMaterial = new Material({
-							// 	'uTextureSample': { type: '1i', value: textureSample },
-							// 	'uKd': { type: '3fv', value: mat.color.toArray() }
-							// },[],VertexShader, FragmentShader);
-							
-							// myMaterial = new PhongMaterial(mat.color.toArray(), colorMap, mat.specular.toArray(), renderer.lights[0].entity.mat.intensity, 
-							// dirLightIntensity, dirLightDirection, dirLightColor);
-
-							if (colorMap != null) {
-								textureSample = 1;
-								// myMaterial = new Material({
-								// 	'uSampler': { type: 'texture', value: colorMap },
-								// 	'uTextureSample': { type: '1i', value: textureSample },
-								// 	'uKd': { type: '3fv', value: mat.color.toArray() }
-								// },[],VertexShader, FragmentShader);
-								
-								myMaterial = new PhongMaterial(mat.color.toArray(), colorMap, mat.specular.toArray(), renderer.lights[0].entity.mat.intensity, 
-								dirLightIntensity, dirLightDirection, dirLightColor);
-							}else{
-								// myMaterial = new Material({
-								// 	'uTextureSample': { type: '1i', value: textureSample },
-								// 	'uKd': { type: '3fv', value: mat.color.toArray() }
-								// },[],VertexShader, FragmentShader);
-								
-								myMaterial = new PhongMaterial(mat.color.toArray(), colorMap, mat.specular.toArray(), renderer.lights[0].entity.mat.intensity, 
-								dirLightIntensity, dirLightDirection, dirLightColor);
+							let colorMap = new Texture();
+							if (mat.map != null) {
+								colorMap.CreateImageTexture(renderer.gl, mat.map.image);
 							}
-							
-							let meshRender = new MeshRender(renderer.gl, mesh, myMaterial);
-							renderer.addMesh(meshRender);
-							console.log("load success");
+							else {
+								colorMap.CreateConstantTexture(renderer.gl, mat.color.toArray());
+							}
+
+							let material, shadowMaterial;
+							let Translation = [transform.modelTransX, transform.modelTransY, transform.modelTransZ];
+							let Scale = [transform.modelScaleX, transform.modelScaleY, transform.modelScaleZ];
+
+							let light = renderer.lights[0].entity;
+							switch (objMaterial) {
+								case 'PhongMaterial':
+									material = buildPhongMaterial(colorMap, mat.specular.toArray(), light, Translation, Scale, "./src/shaders/phongShader/phongVertex.glsl", "./src/shaders/phongShader/phongFragment.glsl");
+									shadowMaterial = buildShadowMaterial(light, Translation, Scale, "./src/shaders/shadowShader/shadowVertex.glsl", "./src/shaders/shadowShader/shadowFragment.glsl");
+									break;
+							}
+
+							material.then((data) => {
+								let meshRender = new MeshRender(renderer.gl, mesh, data);
+								renderer.addMeshRender(meshRender);
+							});
+							shadowMaterial.then((data) => {
+								let shadowMeshRender = new MeshRender(renderer.gl, mesh, data);
+								renderer.addShadowMeshRender(shadowMeshRender);
+							});
 						}
 					});
 				}, onProgress, onError);

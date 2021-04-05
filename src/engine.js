@@ -1,8 +1,14 @@
-var cameraPosition = [-20, 180, 250];
+var cameraPosition = [30, 30, 30]
+
+//生成的纹理的分辨率，纹理必须是标准的尺寸 256*256 1024*1024  2048*2048
+//var resolution = 8192;
+var resolution = 2048;
+var fbo;
 
 GAMES202Main();
 
 function GAMES202Main() {
+	// Init canvas and gl
 	const canvas = document.querySelector('#glcanvas');
 	canvas.width = window.screen.width;
 	canvas.height = window.screen.height;
@@ -12,15 +18,11 @@ function GAMES202Main() {
 		return;
 	}
 
-	const camera = new THREE.PerspectiveCamera(75, gl.canvas.clientWidth / gl.canvas.clientHeight, 0.1, 1000);
-	const cameraControls = new THREE.OrbitControls(camera, canvas);
-	cameraControls.enableZoom = true;
-	cameraControls.enableRotate = true;
-	cameraControls.enablePan = true;
-	cameraControls.rotateSpeed = 0.3;
-	cameraControls.zoomSpeed = 1.0;
-	cameraControls.panSpeed = 2.0;
+	// Add camera
+	const camera = new THREE.PerspectiveCamera(75, gl.canvas.clientWidth / gl.canvas.clientHeight, 1e-2, 1000);
+	camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
 
+	// Add resize listener
 	function setSize(width, height) {
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
@@ -28,69 +30,71 @@ function GAMES202Main() {
 	setSize(canvas.clientWidth, canvas.clientHeight);
 	window.addEventListener('resize', () => setSize(canvas.clientWidth, canvas.clientHeight));
 
-	camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
-	cameraControls.target.set(0, 1, 0);
+	// Add camera control
+	const cameraControls = new THREE.OrbitControls(camera, canvas);
+	cameraControls.enableZoom = true;
+	cameraControls.enableRotate = true;
+	cameraControls.enablePan = true;
+	cameraControls.rotateSpeed = 0.3;
+	cameraControls.zoomSpeed = 1.0;
+	cameraControls.panSpeed = 0.8;
+	cameraControls.target.set(0, 0, 0);
 
-	const pointLight = new PointLight(250, [1, 1, 1]);
-	const dirLight = new DirLight(300, [1, 0.8, 0.8]);
-
+	// Add renderer
 	const renderer = new WebGLRenderer(gl, camera);
 
-	var guiParams = {
-		modelTransX: 0,
-		modelTransY: 0,
-		modelTransZ: 0,
-		modelScaleX: 52,
-		modelScaleY: 52,
-		modelScaleZ: 52,
-		dirLightTransDirX : 0,
-		dirLightTransDirY : 0,
-		dirLightTransDirZ : 2,
-		dirLightColorR : 1,
-		dirLightColorG : 0.8,
-		dirLightColorB : 0.8,
-		dirLightIntensity : 0.5,
-	}
+	// Add lights
+	// light - is open shadow map == true
+	let lightPos = [0, 80, 80];
+	let focalPoint = [0, 0, 0];
+	let lightUp = [0, 1, 0]
+	const directionLight = new DirectionalLight(5000, [1, 0.8, 0.8], lightPos, focalPoint, lightUp, true, renderer.gl);
+	renderer.addLight(directionLight);
+
+	// Add shapes
+	
+	let floorTransform = setTransform(0, 0, -30, 4, 4, 4);
+	let obj1Transform = setTransform(0, 0, 0, 20, 20, 20);
+	let obj2Transform = setTransform(40, 0, -40, 10, 10, 10);
+
+	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj1Transform);
+	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj2Transform);
+	loadOBJ(renderer, 'assets/floor/', 'floor', 'PhongMaterial', floorTransform);
+	
+
+	// let floorTransform = setTransform(0, 0, 0, 100, 100, 100);
+	// let cubeTransform = setTransform(0, 50, 0, 10, 50, 10);
+	// let sphereTransform = setTransform(30, 10, 0, 10, 10, 10);
+
+	//loadOBJ(renderer, 'assets/basic/', 'cube', 'PhongMaterial', cubeTransform);
+	// loadOBJ(renderer, 'assets/basic/', 'sphere', 'PhongMaterial', sphereTransform);
+	//loadOBJ(renderer, 'assets/basic/', 'plane', 'PhongMaterial', floorTransform);
+
+
 	function createGUI() {
 		const gui = new dat.gui.GUI();
-		const panelModel = gui.addFolder('Model properties');
-		const panelModelTrans = panelModel.addFolder('Translation');
-		const panelModelScale = panelModel.addFolder('Scale');
-		const panelModelDirLight = panelModel.addFolder("DirectionLight")
-		const panelModelDirLightTransform = panelModelDirLight.addFolder("Transform")
-		const panelModelDirLightColor = panelModelDirLight.addFolder("Color")
-		panelModelTrans.add(guiParams, 'modelTransX').name('X');
-		panelModelTrans.add(guiParams, 'modelTransY').name('Y');
-		panelModelTrans.add(guiParams, 'modelTransZ').name('Z');
-		panelModelScale.add(guiParams, 'modelScaleX').name('X');
-		panelModelScale.add(guiParams, 'modelScaleY').name('Y');
-		panelModelScale.add(guiParams, 'modelScaleZ').name('Z');
-		panelModelDirLightTransform.add(guiParams, 'dirLightTransDirX').name('X');
-		panelModelDirLightTransform.add(guiParams, 'dirLightTransDirY').name('Y');
-		panelModelDirLightTransform.add(guiParams, 'dirLightTransDirZ').name('Z');
-		panelModelDirLightColor.add(guiParams, 'dirLightColorR').name('R');
-		panelModelDirLightColor.add(guiParams, 'dirLightColorG').name('G');
-		panelModelDirLightColor.add(guiParams, 'dirLightColorB').name('B');
-		panelModelDirLightColor.add(guiParams, 'dirLightIntensity').name('Light Intensity');
-		panelModel.open();
-		panelModelTrans.open();
-		panelModelScale.open();
-		panelModelDirLight.open();
-		panelModelDirLightTransform.open();
-		panelModelDirLightColor.open();
+		// const panelModel = gui.addFolder('Model properties');
+		// panelModelTrans.add(GUIParams, 'x').name('X');
+		// panelModel.open();
 	}
-
 	createGUI();
-	renderer.addLight(pointLight);
-	//renderer.addLight(dirLight);
-	loadOBJ(renderer, 'assets/mary/', 'Marry', guiParams);
-
 
 	function mainLoop(now) {
 		cameraControls.update();
 
-		renderer.render(guiParams);
+		renderer.render();
 		requestAnimationFrame(mainLoop);
 	}
 	requestAnimationFrame(mainLoop);
+}
+
+function setTransform(t_x, t_y, t_z, s_x, s_y, s_z) {
+	return {
+		modelTransX: t_x,
+		modelTransY: t_y,
+		modelTransZ: t_z,
+		modelScaleX: s_x,
+		modelScaleY: s_y,
+		modelScaleZ: s_z,
+	};
 }
